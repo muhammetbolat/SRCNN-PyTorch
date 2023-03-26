@@ -22,6 +22,9 @@ import config
 import imgproc
 from image_quality_assessment import PSNR, SSIM
 from model import SRCNN
+import os
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 
 def main() -> None:
@@ -38,6 +41,15 @@ def main() -> None:
     results_dir = os.path.join("results", "test", config.exp_name)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
+
+    # Create a folder of super-resolution experiment results
+    sr_results_dir = os.path.join("results", "test", config.exp_name, "sr")
+    if not os.path.exists(sr_results_dir):
+        os.makedirs(sr_results_dir)
+
+    lr_results_dir = os.path.join("results", "test", config.exp_name, "lr")
+    if not os.path.exists(lr_results_dir):
+        os.makedirs(lr_results_dir)
 
     # Start the verification mode of the model.
     model.eval()
@@ -57,7 +69,7 @@ def main() -> None:
     ssim_metrics = 0.0
 
     # Get a list of test image file names.
-    file_names = natsorted(os.listdir(config.lr_dir))
+    file_names = natsorted(os.listdir(config.hr_dir))
     # Get the number of test image files.
     total_files = len(file_names)
 
@@ -68,19 +80,27 @@ def main() -> None:
 
         print(f"Processing `{os.path.abspath(lr_image_path)}`...")
         # Read LR image and HR image
+        """
         lr_image = cv2.imread(lr_image_path, cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.0
         hr_image = cv2.imread(hr_image_path, cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.0
-
         lr_image = imgproc.image_resize(lr_image, 1 / config.upscale_factor)
         lr_image = imgproc.image_resize(lr_image, config.upscale_factor)
+        """
+
+        hr_image = cv2.imread(hr_image_path)
+
+        #lr_image = imgproc.dropHighFrequencies(hr_image, 1 / config.upscale_factor)
+        lr_image = imgproc.image_resize(hr_image, 1 / config.upscale_factor)
+        lr_image = imgproc.image_resize(lr_image, config.upscale_factor)
+
+        lr_image_norm = lr_image.astype(np.float32) / 255.0
+        hr_image_norm = hr_image.astype(np.float32) / 255.0
 
         # Get Y channel image data
-        lr_y_image = imgproc.bgr2ycbcr(lr_image, True)
-        hr_y_image = imgproc.bgr2ycbcr(hr_image, True)
-
+        lr_y_image = imgproc.bgr2ycbcr(lr_image_norm, only_use_y_channel=True)
         # Get Cb Cr image data from hr image
-        hr_ycbcr_image = imgproc.bgr2ycbcr(hr_image, False)
-        _, hr_cb_image, hr_cr_image = cv2.split(hr_ycbcr_image)
+        hr_ycbcr_image = imgproc.bgr2ycbcr(hr_image_norm, False)
+        hr_y_image, hr_cb_image, hr_cr_image = cv2.split(hr_ycbcr_image)
 
         # Convert RGB channel image format data to Tensor channel image format data
         lr_y_tensor = imgproc.image2tensor(lr_y_image, False, True).unsqueeze_(0)
@@ -99,7 +119,9 @@ def main() -> None:
         sr_y_image = sr_y_image.astype(np.float32) / 255.0
         sr_ycbcr_image = cv2.merge([sr_y_image, hr_cb_image, hr_cr_image])
         sr_image = imgproc.ycbcr2bgr(sr_ycbcr_image)
+
         cv2.imwrite(sr_image_path, sr_image * 255.0)
+        cv2.imwrite(lr_image_path, lr_image)
 
         # Cal IQA metrics
         psnr_metrics += psnr(sr_y_tensor, hr_y_tensor).item()

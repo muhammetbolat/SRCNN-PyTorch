@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 import torch
 from torchvision.transforms import functional as F
+from scipy import fftpack
 
 __all__ = [
     "image2tensor", "tensor2image",
@@ -449,51 +450,55 @@ def bgr2ycbcr_torch(tensor: torch.Tensor, only_use_y_channel: bool) -> torch.Ten
 
     return tensor
 
-
-def center_crop(image: np.ndarray, image_size: int) -> np.ndarray:
+def center_crop(lr_image: np.ndarray, hr_image: np.ndarray, image_size: int) -> [np.ndarray, np.ndarray]:
     """Crop small image patches from one image center area.
 
     Args:
-        image (np.ndarray): The input image for `OpenCV.imread`.
+        lr_image (np.ndarray): The input low-resolution image for `OpenCV.imread`.
+        hr_image (np.ndarray): The input high-resolution image for `OpenCV.imread`.
         image_size (int): The size of the captured image area.
 
     Returns:
-        patch_image (np.ndarray): Small patch image
-
+        np.ndarray: Small patch images.
     """
-    image_height, image_width = image.shape[:2]
+
+    image_height, image_width = lr_image.shape[:2]
 
     # Just need to find the top and left coordinates of the image
     top = (image_height - image_size) // 2
     left = (image_width - image_size) // 2
 
     # Crop image patch
-    patch_image = image[top:top + image_size, left:left + image_size, ...]
+    patch_lr_image = lr_image[top:top + image_size, left:left + image_size, ...]
+    patch_hr_image = hr_image[top:top + image_size, left:left + image_size, ...]
 
-    return patch_image
+    return patch_lr_image, patch_hr_image
 
 
-def random_crop(image: np.ndarray, image_size: int) -> np.ndarray:
+def random_crop(lr_image: np.ndarray, hr_image: np.ndarray, image_size: int) -> [np.ndarray, np.ndarray]:
     """Crop small image patches from one image.
 
     Args:
-        image (np.ndarray): The input image for `OpenCV.imread`.
+        lr_image (np.ndarray): The input low-resolution image for `OpenCV.imread`.
+        hr_image (np.ndarray): The input high-resolution image for `OpenCV.imread`.
         image_size (int): The size of the captured image area.
 
     Returns:
-        patch_image (np.ndarray): Small patch image
-
+        np.ndarray: Small patch images.
     """
-    image_height, image_width = image.shape[:2]
+
+    image_height, image_width = lr_image.shape[:2]
 
     # Just need to find the top and left coordinates of the image
     top = random.randint(0, image_height - image_size)
     left = random.randint(0, image_width - image_size)
 
     # Crop image patch
-    patch_image = image[top:top + image_size, left:left + image_size, ...]
+    patch_lr_image = lr_image[top:top + image_size, left:left + image_size, ...]
+    patch_hr_image = hr_image[top:top + image_size, left:left + image_size, ...]
 
-    return patch_image
+    return patch_lr_image, patch_hr_image
+
 
 
 def random_rotate(image,
@@ -561,3 +566,43 @@ def random_vertically_flip(image: np.ndarray, p: float = 0.5) -> np.ndarray:
         vertically_flip_image = image
 
     return vertically_flip_image
+
+
+def dct2(img):
+    dim0 = fftpack.dct(img, axis=0, norm='ortho')
+    dim1 = fftpack.dct(dim0, axis=1, norm='ortho')
+    dim2 = fftpack.dct(dim1, axis=2, norm='ortho')
+
+    return dim2
+
+
+def idct2(img):
+    dim0 = fftpack.idct(img, axis=0, norm='ortho')
+    dim1 = fftpack.idct(dim0, axis=1, norm='ortho')
+    dim2 = fftpack.idct(dim1, axis=2, norm='ortho')
+
+    return dim2
+
+
+def dropHighFrequencies(hr_image, rate) -> np.array:
+    FIs = dct2(hr_image)
+    Nx, Ny, _ = hr_image.shape
+
+    Rx, Ry = np.int16([rate * Nx, rate * Ny])
+    crop_FIs = FIs[0:Rx, 0:Ry]
+
+    DCT_temp = np.zeros((Nx, Ny, 3))
+
+    DCT_temp[0:Rx, 0:Ry] = crop_FIs
+
+    I_r = idct2(DCT_temp).astype(int)
+
+    Final_Img = np.zeros((Nx, Ny, 3))
+
+    Final_Img[:, :, 0] = I_r[:, :, 0]
+    Final_Img[:, :, 1] = I_r[:, :, 1]
+    Final_Img[:, :, 2] = I_r[:, :, 2]
+
+    lr_image = Final_Img.astype(int)
+
+    return lr_image

@@ -16,6 +16,8 @@ import queue
 import threading
 
 import cv2
+import gc
+from tqdm import tqdm
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -38,35 +40,43 @@ class TrainValidImageDataset(Dataset):
         mode (str): Data set loading method, the training data set is for data enhancement, and the verification data set is not for data enhancement.
     """
 
-    def __init__(self, image_dir: str, image_size: int, upscale_factor: int, mode: str) -> None:
+    def __init__(self, image_dir: str, image_size: int, mode: str) -> None:
         super(TrainValidImageDataset, self).__init__()
         # Get all image file names in folder
-        self.image_file_names = [os.path.join(image_dir, image_file_name) for image_file_name in os.listdir(image_dir)]
+        self.lr_image_file_names = [os.path.join(image_dir, "lr", image_file_name) for image_file_name in os.listdir(os.path.join(image_dir, "lr"))]
+        self.hr_image_file_names = [os.path.join(image_dir, "hr", image_file_name) for image_file_name in os.listdir(os.path.join(image_dir, "hr"))]
+
         # Specify the high-resolution image size, with equal length and width
         self.image_size = image_size
-        # How many times the high-resolution image is the low-resolution image
-        self.upscale_factor = upscale_factor
         # Load training dataset or test dataset
         self.mode = mode
 
+        # Contains low-resolution and high-resolution image Tensor data
+        self.lr_datasets = []
+        self.hr_datasets = []
+
+        # preload images into memory
+        self.read_image_to_memory()
+
     def __getitem__(self, batch_index: int) -> [torch.Tensor, torch.Tensor]:
         # Read a batch of image data
-        image = cv2.imread(self.image_file_names[batch_index], cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
+        # image = cv2.imread(self.image_file_names[batch_index], cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
+        # Read a batch of image data
+        lr_y_image = self.lr_datasets[batch_index]
+        hr_y_image = self.hr_datasets[batch_index]
 
         # Image processing operations
         if self.mode == "Train":
-            hr_image = imgproc.random_crop(image, self.image_size)
+            lr_y_image, hr_y_image = imgproc.random_crop(lr_y_image, hr_y_image, self.image_size)
         elif self.mode == "Valid":
-            hr_image = imgproc.center_crop(image, self.image_size)
+            lr_y_image, hr_y_image = imgproc.center_crop(lr_y_image, hr_y_image, self.image_size)
         else:
             raise ValueError("Unsupported data processing model, please use `Train` or `Valid`.")
-
+        """
         lr_image = imgproc.image_resize(hr_image, 1 / self.upscale_factor)
         lr_image = imgproc.image_resize(lr_image, self.upscale_factor)
-
-        # Only extract the image data of the Y channel
-        lr_y_image = imgproc.bgr2ycbcr(lr_image, only_use_y_channel=True)
-        hr_y_image = imgproc.bgr2ycbcr(hr_image, only_use_y_channel=True)
+        lr_image = lr_image[0: self.image_size, 0: self.image_size, ...]
+        """
 
         # Convert image data into Tensor stream format (PyTorch).
         # Note: The range of input and output is between [0, 1]
@@ -75,8 +85,43 @@ class TrainValidImageDataset(Dataset):
 
         return {"lr": lr_y_tensor, "hr": hr_y_tensor}
 
+    def read_image_to_memory(self) -> None:
+        lr_progress_bar = tqdm(self.lr_image_file_names,
+                               total=len(self.lr_image_file_names),
+                               unit="image",
+                               desc=f"Read lr dataset into memory")
+
+        for lr_image_file_name in lr_progress_bar:
+            # Disabling garbage collection after for loop helps speed things up
+            gc.disable()
+
+            lr_image = cv2.imread(lr_image_file_name, cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
+            # Only extract the image data of the Y channel
+            lr_y_image = imgproc.bgr2ycbcr(lr_image, only_use_y_channel=True)
+            self.lr_datasets.append(lr_y_image)
+
+            # After executing append, you need to turn on garbage collection again
+            gc.enable()
+
+        hr_progress_bar = tqdm(self.hr_image_file_names,
+                               total=len(self.hr_image_file_names),
+                               unit="image",
+                               desc=f"Read hr dataset into memory")
+
+        for hr_image_file_name in hr_progress_bar:
+            # Disabling garbage collection after for loop helps speed things up
+            gc.disable()
+
+            hr_image = cv2.imread(hr_image_file_name, cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
+            # Only extract the image data of the Y channel
+            hr_y_image = imgproc.bgr2ycbcr(hr_image, only_use_y_channel=True)
+            self.hr_datasets.append(hr_y_image)
+
+            # After executing append, you need to turn on garbage collection again
+            gc.enable()
+
     def __len__(self) -> int:
-        return len(self.image_file_names)
+        return len(self.lr_image_file_names)
 
 
 class TestImageDataset(Dataset):
@@ -88,36 +133,70 @@ class TestImageDataset(Dataset):
         upscale_factor (int): Image up scale factor.
     """
 
-    def __init__(self, test_lr_image_dir: str, test_hr_image_dir: str, upscale_factor: int) -> None:
+    def __init__(self, test_image_dir: str, upscale_factor: int) -> None:
         super(TestImageDataset, self).__init__()
         # Get all image file names in folder
-        self.lr_image_file_names = [os.path.join(test_lr_image_dir, x) for x in os.listdir(test_lr_image_dir)]
-        self.hr_image_file_names = [os.path.join(test_hr_image_dir, x) for x in os.listdir(test_hr_image_dir)]
+        self.image_file_names = [os.path.join(test_image_dir, x) for x in os.listdir(test_image_dir)]
         # How many times the high-resolution image is the low-resolution image
         self.upscale_factor = upscale_factor
 
+        # Contains low-resolution and high-resolution image Tensor data
+        self.lr_datasets = []
+        self.hr_datasets = []
+
+        # preload images into memory
+        self.read_image_to_memory()
+
     def __getitem__(self, batch_index: int) -> [torch.Tensor, torch.Tensor]:
-        # Read a batch of image data
+        """
         lr_image = cv2.imread(self.lr_image_file_names[batch_index], cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
         hr_image = cv2.imread(self.hr_image_file_names[batch_index], cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
 
         # Use high-resolution image to make low-resolution image
         lr_image = imgproc.image_resize(lr_image, 1 / self.upscale_factor)
         lr_image = imgproc.image_resize(lr_image, self.upscale_factor)
-
-        # Only extract the image data of the Y channel
-        lr_y_image = imgproc.bgr2ycbcr(lr_image, only_use_y_channel=True)
-        hr_y_image = imgproc.bgr2ycbcr(hr_image, only_use_y_channel=True)
-
-        # Convert image data into Tensor stream format (PyTorch).
-        # Note: The range of input and output is between [0, 1]
-        lr_y_tensor = imgproc.image2tensor(lr_y_image, range_norm=False, half=False)
-        hr_y_tensor = imgproc.image2tensor(hr_y_image, range_norm=False, half=False)
+        """
+        # Read a batch of image data
+        lr_y_tensor = self.lr_datasets[batch_index]
+        hr_y_tensor = self.hr_datasets[batch_index]
 
         return {"lr": lr_y_tensor, "hr": hr_y_tensor}
 
     def __len__(self) -> int:
-        return len(self.lr_image_file_names)
+        return len(self.image_file_names)
+
+    def read_image_to_memory(self) -> None:
+        progress_bar = tqdm(self.image_file_names,
+                            total=len(self.image_file_names),
+                            unit="image",
+                            desc=f"Read test dataset into memory")
+
+        for image_file_name in progress_bar:
+            # Disabling garbage collection after for loop helps speed things up
+            gc.disable()
+
+            # Read a batch of image data
+            hr_image = cv2.imread(image_file_name, cv2.IMREAD_UNCHANGED)
+            # Use high-resolution image to make low-resolution image
+            lr_image = imgproc.dropHighFrequencies(hr_image, 1 / self.upscale_factor)
+
+            hr_image = hr_image.astype(np.float32) / 255.
+            lr_image = lr_image.astype(np.float32) / 255.
+
+            # Only extract the image data of the Y channel
+            lr_y_image = imgproc.bgr2ycbcr(lr_image, only_use_y_channel=True)
+            hr_y_image = imgproc.bgr2ycbcr(hr_image, only_use_y_channel=True)
+
+            # Convert image data into Tensor stream format (PyTorch).
+            # Note: The range of input and output is between [0, 1]
+            lr_y_tensor = imgproc.image2tensor(lr_y_image, range_norm=False, half=False)
+            hr_y_tensor = imgproc.image2tensor(hr_y_image, range_norm=False, half=False)
+
+            self.lr_datasets.append(lr_y_tensor)
+            self.hr_datasets.append(hr_y_tensor)
+
+            # After executing append, you need to turn on garbage collection again
+            gc.enable()
 
 
 class PrefetchGenerator(threading.Thread):

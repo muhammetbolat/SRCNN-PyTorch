@@ -37,7 +37,7 @@ def main() -> None:
     best_psnr = 0.0
     best_ssim = 0.0
 
-    train_prefetcher, test_prefetcher = load_dataset()
+    train_prefetcher, valid_prefetcher, test_prefetcher = load_dataset()
     print("Load all datasets successfully")
 
     model = build_model()
@@ -98,12 +98,14 @@ def main() -> None:
         is_best = psnr > best_psnr and ssim > best_ssim
         best_psnr = max(psnr, best_psnr)
         best_ssim = max(ssim, best_ssim)
+
         torch.save({"epoch": epoch + 1,
                     "best_psnr": best_psnr,
                     "best_ssim": best_ssim,
                     "state_dict": model.state_dict(),
                     "optimizer": optimizer.state_dict()},
                    os.path.join(samples_dir, f"epoch_{epoch + 1}.pth.tar"))
+        
         if is_best:
             shutil.copyfile(os.path.join(samples_dir, f"epoch_{epoch + 1}.pth.tar"),
                             os.path.join(results_dir, "best.pth.tar"))
@@ -114,8 +116,9 @@ def main() -> None:
 
 def load_dataset() -> [CUDAPrefetcher, CUDAPrefetcher]:
     # Load train, test and valid datasets
-    train_datasets = TrainValidImageDataset(config.train_image_dir, config.image_size, config.upscale_factor, "Train")
-    test_datasets = TestImageDataset(config.test_lr_image_dir, config.test_hr_image_dir, config.upscale_factor)
+    train_datasets = TrainValidImageDataset(config.train_image_dir, config.image_size, "Train")
+    valid_datasets = TrainValidImageDataset(config.valid_image_dir, config.image_size, "Valid")
+    test_datasets = TestImageDataset(config.test_image_dir, config.upscale_factor)
 
     # Generator all dataloader
     train_dataloader = DataLoader(train_datasets,
@@ -125,6 +128,15 @@ def load_dataset() -> [CUDAPrefetcher, CUDAPrefetcher]:
                                   pin_memory=True,
                                   drop_last=True,
                                   persistent_workers=True)
+
+    valid_dataloader = DataLoader(valid_datasets,
+                                  batch_size=config.batch_size,
+                                  shuffle=False,
+                                  num_workers=config.num_workers,
+                                  pin_memory=True,
+                                  drop_last=False,
+                                  persistent_workers=True)
+
     test_dataloader = DataLoader(test_datasets,
                                  batch_size=1,
                                  shuffle=False,
@@ -135,9 +147,10 @@ def load_dataset() -> [CUDAPrefetcher, CUDAPrefetcher]:
 
     # Place all data on the preprocessing data loader
     train_prefetcher = CUDAPrefetcher(train_dataloader, config.device)
+    valid_prefetcher = CUDAPrefetcher(valid_dataloader, config.device)
     test_prefetcher = CUDAPrefetcher(test_dataloader, config.device)
 
-    return train_prefetcher, test_prefetcher
+    return train_prefetcher, valid_prefetcher, test_prefetcher
 
 
 def build_model() -> nn.Module:
@@ -323,7 +336,6 @@ def validate(model: nn.Module,
 
         # print metrics
         progress.display_summary()
-
         if mode == "Valid" or mode == "Test":
             writer.add_scalar(f"{mode}/PSNR", psnres.avg, epoch + 1)
             writer.add_scalar(f"{mode}/SSIM", ssimes.avg, epoch + 1)

@@ -26,17 +26,17 @@ device = torch.device("cuda", 0)
 # Turning on when the image size does not change during training can speed up training
 cudnn.benchmark = True
 # Image magnification factor
-upscale_factor = 2
+upscale_factor = 4
 # Current configuration parameter method
-mode = "train"
+mode = "test"
 # Experiment name, easy to save weights and log files
-exp_name = "SRCNN_x2"
+exp_name = "srcnn_bic_baseline_x{}".format(upscale_factor)
 
 if mode == "train":
     # Dataset
     train_image_dir = "./data/T91/SRCNN/train"
-    test_lr_image_dir = "./data/Set5/GTmod12"
-    test_hr_image_dir = "./data/Set5/GTmod12"
+    valid_image_dir = "./data/T91/SRCNN/valid"
+    test_image_dir = "./data/Set5/GTmod12"
 
     image_size = 32
     batch_size = 16
@@ -59,8 +59,8 @@ if mode == "train":
 
 if mode == "test":
     # Test data address
-    lr_dir = f"./data/Set5/GTmod12"
-    sr_dir = f"./results/test/{exp_name}"
+    lr_dir = f"./results/test/{exp_name}/lr"
+    sr_dir = f"./results/test/{exp_name}/sr"
     hr_dir = f"./data/Set5/GTmod12"
 
-    model_path = "results/pretrained_models/srcnn_x2-T91-7d6e0623.pth.tar"
+    model_path = f"results/{exp_name}/srcnn_pretrained_x4.pth.tar"
