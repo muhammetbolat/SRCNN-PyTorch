@@ -1,0 +1,25 @@
+2X (BICUBIC RESOLUTION)
+ * PSNR 33.28 SSIM 0.92
+   Pretrained Model: PSNR: 36.72 dB SSIM: 0.96
+
+3X (BICUBIC RESOLUTION)
+ * PSNR 31.16 SSIM 0.88 - tekrar hesaplanıp model kaydedilecek
+   Pretrained Model: PSNR: 32.70 dB SSIM: 0.91
+
+4X (BICUBIC RESOLUTION)
+ * PSNR 28.88 SSIM 0.82 - tekrar hesaplanıp model kaydedilecek
+   Pretrained Model: PSNR: 30.26 db SSIM: 0.86
+
+- Çok uzun epoch değerlerinde sonuçlar iyileşiyor. Örneğin 10.000 epoch. Modeli daha fazla eğitim işlemine tutarsak performansta iyileşmeler olacak.
+
+2X (DCT)
+* PSNR 35.36 SSIM 0.94   - tekrar hesaplanacak ve model kaydedilecek.
+
+3X (DCT)
+* PSNR 31.45 SSIM 0.88
+
+4X (DCT)
+* PSNR 29.64 SSIM 0.82
+
+Fine Tuning Sonuçları
+2X (BICUBIC MODEL -> DCT)
