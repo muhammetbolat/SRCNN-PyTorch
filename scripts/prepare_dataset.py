@@ -58,8 +58,9 @@ def worker(image_file_name, args) -> None:
                 hr_image = image[pos_y: pos_y + args.image_size, pos_x:pos_x + args.image_size, ...]
                 hr_image = np.ascontiguousarray(hr_image)
                 #lr_image = data_utils.dropHighFrequencies(hr_image, 1 / args.scale)
-                lr_image = data_utils.imresize(hr_image, 1 / args.scale)
-                lr_image = data_utils.imresize(lr_image, args.scale)
+                #lr_image = data_utils.imresize(hr_image, 1 / args.scale)
+                #lr_image = data_utils.imresize(lr_image, args.scale)
+                lr_image = data_utils.image_to_jpeg(hr_image, args.scale)
 
                 # Save image
                 cv2.imwrite(

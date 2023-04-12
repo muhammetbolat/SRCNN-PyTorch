@@ -23,3 +23,47 @@
 
 Fine Tuning Sonuçları
 2X (BICUBIC MODEL -> DCT)
+
+
+
+################################################################################################################
+########### JPEG ###########
+QUALITY: 10
+PSNR LR-HR: 29.87
+PSNR SR-HR: 30.34
+
+SSIM LR-HR: 0.8268
+SSIM SR-HR: 0.8486
+
+
+QUALITY: 20
+PSNR LR-HR: 32.37
+PSNR SR-HR: 32.78
+
+SSIM LR-HR: 0.8852
+SSIM SR-HR: 0.8956
+
+
+QUALITY: 30
+PSNR LR-HR: 33.82
+PSNR SR-HR: 34.15
+
+SSIM LR-HR: 0.9090
+SSIM SR-HR: 0.9156
+
+
+QUALITY: 40
+PSNR LR-HR: 34.74
+PSNR SR-HR: 34.97
+
+SSIM LR-HR: 0.9223
+SSIM SR-HR: 0.9270
+
+
+QUALITY: 50
+PSNR LR-HR: 35.35
+PSNR SR-HR: 35.85
+
+SSIM LR-HR: 0.9315
+SSIM SR-HR: 0.9358
+

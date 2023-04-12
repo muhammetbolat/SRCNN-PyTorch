@@ -43,11 +43,11 @@ def main() -> None:
         os.makedirs(results_dir)
 
     # Create a folder of super-resolution experiment results
-    sr_results_dir = os.path.join("results", "test", config.exp_name, "sr")
+    sr_results_dir = os.path.join("results", "test", config.exp_name, config.dataset, "sr")
     if not os.path.exists(sr_results_dir):
         os.makedirs(sr_results_dir)
 
-    lr_results_dir = os.path.join("results", "test", config.exp_name, "lr")
+    lr_results_dir = os.path.join("results", "test", config.exp_name, config.dataset, "lr")
     if not os.path.exists(lr_results_dir):
         os.makedirs(lr_results_dir)
 
@@ -90,8 +90,9 @@ def main() -> None:
         hr_image = cv2.imread(hr_image_path)
 
         #lr_image = imgproc.dropHighFrequencies(hr_image, 1 / config.upscale_factor)
-        lr_image = imgproc.image_resize(hr_image, 1 / config.upscale_factor)
-        lr_image = imgproc.image_resize(lr_image, config.upscale_factor)
+        #lr_image = imgproc.image_resize(hr_image, 1 / config.upscale_factor)
+        #lr_image = imgproc.image_resize(lr_image, config.upscale_factor)
+        lr_image = imgproc.image_to_jpeg(hr_image, config.upscale_factor)
 
         lr_image_norm = lr_image.astype(np.float32) / 255.0
         hr_image_norm = hr_image.astype(np.float32) / 255.0
